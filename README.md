@@ -1,4 +1,4 @@
-# Booking.com to Google Maps Chrome Extension
+# Booking.com to Google Maps Reviews
 
 This Chrome extension places a link on Booking.com pages. It looks for the property on Google Maps, and if found, switches to the 'Reviews' tab and orders according to 'Newest'.
 
