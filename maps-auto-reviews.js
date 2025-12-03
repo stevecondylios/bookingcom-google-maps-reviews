@@ -51,16 +51,123 @@
       return false;
     }
 
+    // Function to find and click the "Newest" sort option
+    function clickNewestSort() {
+      // Try multiple selectors for the sort dropdown
+      const sortSelectors = [
+        'button[aria-label*="Sort"]',
+        'button[aria-label*="sort"]',
+        'button[data-value*="Sort"]',
+        'button[jsaction*="pane.reviewSort"]'
+      ];
+
+      for (const selector of sortSelectors) {
+        const sortButton = document.querySelector(selector);
+        if (sortButton) {
+          console.log('Found sort button, clicking:', selector);
+          sortButton.click();
+
+          // Wait a bit for the dropdown to appear
+          setTimeout(() => {
+            // Find and click "Newest" option
+            const newestSelectors = [
+              'div[role="menuitemradio"][data-index="1"]',
+              'div[role="menuitem"]:has-text("Newest")',
+              'div[data-value="Newest"]',
+              '[role="menuitemradio"][aria-label*="Newest"]'
+            ];
+
+            for (const newestSelector of newestSelectors) {
+              const newestOption = document.querySelector(newestSelector);
+              if (newestOption) {
+                console.log('Found Newest option, clicking:', newestSelector);
+                newestOption.click();
+                return true;
+              }
+            }
+
+            // Try finding by text content in menu items
+            const menuItems = document.querySelectorAll('div[role="menuitemradio"], div[role="menuitem"]');
+            for (const item of menuItems) {
+              if (item.textContent.trim().toLowerCase().includes('newest')) {
+                console.log('Found Newest option by text content');
+                item.click();
+                return true;
+              }
+            }
+
+            console.log('Could not find Newest option');
+          }, 300);
+
+          return true;
+        }
+      }
+
+      // Try finding by text content
+      const buttons = document.querySelectorAll('button');
+      for (const button of buttons) {
+        const text = button.textContent.trim().toLowerCase();
+        if (text.includes('sort') || text.includes('most relevant')) {
+          console.log('Found sort button by text content');
+          button.click();
+
+          setTimeout(() => {
+            const menuItems = document.querySelectorAll('div[role="menuitemradio"], div[role="menuitem"]');
+            for (const item of menuItems) {
+              if (item.textContent.trim().toLowerCase().includes('newest')) {
+                console.log('Found Newest option by text content');
+                item.click();
+                return true;
+              }
+            }
+          }, 300);
+
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    let reviewsTabClicked = false;
+    let sortAttempted = false;
+
     // Try immediately
     if (clickReviewsTab()) {
       console.log('Reviews tab clicked immediately');
-      return;
+      reviewsTabClicked = true;
+
+      // Wait a bit for reviews to load, then try to change sort
+      setTimeout(() => {
+        clickNewestSort();
+        sortAttempted = true;
+      }, 1000);
     }
 
     // If not found, wait for the page to load and try again
     const observer = new MutationObserver(() => {
-      if (clickReviewsTab()) {
+      if (!reviewsTabClicked && clickReviewsTab()) {
         console.log('Reviews tab clicked after mutation');
+        reviewsTabClicked = true;
+
+        // Wait for reviews to load, then try to change sort
+        setTimeout(() => {
+          if (!sortAttempted) {
+            clickNewestSort();
+            sortAttempted = true;
+          }
+        }, 1000);
+      }
+
+      // If reviews tab was clicked but sort wasn't attempted yet, keep checking
+      if (reviewsTabClicked && !sortAttempted) {
+        if (clickNewestSort()) {
+          sortAttempted = true;
+        }
+      }
+
+      // Disconnect if both actions completed
+      if (reviewsTabClicked && sortAttempted) {
         observer.disconnect();
       }
     });
@@ -72,10 +179,10 @@
       subtree: true
     });
 
-    // Give up after 10 seconds
+    // Give up after 15 seconds
     setTimeout(() => {
       observer.disconnect();
-      console.log('Stopped looking for Reviews tab');
-    }, 10000);
+      console.log('Stopped looking for Reviews tab and sort button');
+    }, 15000);
   });
 })();
