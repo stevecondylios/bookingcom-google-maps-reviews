@@ -3,12 +3,17 @@
   "name": "Booking.com to Google Maps",
   "version": "1.0",
   "description": "Adds a Google Maps link for properties on Booking.com",
-  "permissions": [],
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": ["*://*.booking.com/*"],
       "js": ["content.js"],
       "css": ["styles.css"]
+    },
+    {
+      "matches": ["*://*.google.com/maps/*"],
+      "js": ["maps-auto-reviews.js"],
+      "run_at": "document_idle"
     }
   ],
   "icons": {

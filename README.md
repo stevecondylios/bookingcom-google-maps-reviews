@@ -1,6 +1,3 @@
+# Booking.com to Google Maps Chrome Extension
 
-
-This Chrome extension makes Booking.com link to the Google Maps reviews for that hotel.
-
-
-
+A Chrome extension that adds a Google Maps button to Booking.com property pages and automatically opens the Reviews tab.

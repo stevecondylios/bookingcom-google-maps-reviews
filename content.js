@@ -64,6 +64,14 @@ function addGoogleMapsButton() {
   link.setAttribute('aria-label', 'View on Google Maps');
   link.title = 'View on Google Maps';
 
+  // Set a flag when clicked so the Maps page knows to auto-open reviews
+  link.addEventListener('click', () => {
+    chrome.storage.local.set({
+      autoOpenReviews: true,
+      timestamp: Date.now()
+    });
+  });
+
   // Create the SVG icon (Google Maps style pin)
   link.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
