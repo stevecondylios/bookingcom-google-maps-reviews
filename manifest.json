@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Booking.com to Google Maps",
+  "name": "Booking.com to Google Maps Reviews",
   "version": "1.0",
-  "description": "Adds a Google Maps link for properties on Booking.com",
+  "description": "Adds a Google Maps link for properties on Booking.com to enable convenient viewing of reviews",
   "permissions": ["storage"],
   "content_scripts": [
     {
