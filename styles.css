@@ -32,3 +32,21 @@
 .google-maps-button svg {
   display: block;
 }
+
+/* Map view button styles */
+.google-maps-button-map-view {
+  display: inline-flex;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.google-maps-button-map-view .google-maps-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.google-maps-button-map-view .google-maps-button svg {
+  width: 18px;
+  height: 18px;
+}
