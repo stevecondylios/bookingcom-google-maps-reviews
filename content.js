@@ -1,29 +1,51 @@
 // Extract property name and location from Booking.com page
 function extractPropertyInfo() {
-  // Find the property name (h2 heading)
-  const nameElement = document.querySelector('h2.a4ac75716e');
-  if (!nameElement) return null;
-
-  const propertyName = nameElement.textContent.trim();
-
-  // Find the location (address text in the button)
-  const locationButton = document.querySelector('.b99b6ef58f.cb4b7a25d9.b06461926f');
-  if (!locationButton) return null;
-
-  // Get only the direct text content (first child node), not the hidden divs
-  let addressText = '';
-  for (let node of locationButton.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      addressText = node.textContent.trim();
-      break;
-    }
+  // Find the property name using the stable ID
+  const nameElement = document.querySelector('#hp_hotel_name_reviews');
+  if (!nameElement) {
+    console.warn('Hotel name element not found');
+    return null;
   }
 
-  if (!addressText) return null;
+  const propertyName = nameElement.textContent.trim();
+  if (!propertyName) {
+    console.warn('Hotel name is empty');
+    return null;
+  }
+
+  // Find the address using the robust approach: find map link, then nearest button
+  // 1. Find the map link (very stable on Booking pages)
+  const mapLink = document.querySelector('a[data-atlas-latlng], a[title*="Check location"]');
+  if (!mapLink) {
+    console.warn('Map link not found');
+    return null;
+  }
+
+  // 2. Find the nearest button containing the address
+  const container = mapLink.closest('div');
+  const button = container?.querySelector('button');
+  if (!button) {
+    console.warn('Address button not found');
+    return null;
+  }
+
+  // 3. Extract only the first line (address)
+  const address = button.innerText
+    .split('\n')
+    .map(s => s.trim())
+    .find(Boolean);
+
+  if (!address) {
+    console.warn('Address text is empty');
+    return null;
+  }
 
   // Extract just the city and country (after the last comma)
-  const parts = addressText.split(',');
-  if (parts.length < 2) return null;
+  const parts = address.split(',');
+  if (parts.length < 2) {
+    console.warn('Address does not contain enough parts');
+    return null;
+  }
 
   const location = parts.slice(-2).join(',').trim();
 
