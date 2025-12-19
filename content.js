@@ -106,7 +106,11 @@ function extractPropertyInfoFromMapCard(infoWindow) {
   let address = null;
   let city = null;
 
+  // Store the booking URL for opening alongside Google Maps
+  let bookingUrl = null;
+
   if (hotelLink) {
+    bookingUrl = hotelLink.href;
     const pageName = extractPageNameFromUrl(hotelLink.href);
     console.log('Map card: Looking up pageName:', pageName);
 
@@ -149,7 +153,8 @@ function extractPropertyInfoFromMapCard(infoWindow) {
     propertyName,
     address,
     location: city,
-    fullQuery
+    fullQuery,
+    bookingUrl
   };
 }
 
@@ -230,10 +235,25 @@ function createGoogleMapsButton(info, isMapViewButton = false) {
   // Set a flag when clicked so the Maps page knows to auto-open reviews
   link.addEventListener('click', (e) => {
     e.stopPropagation(); // Prevent triggering the card's click handler
+
     chrome.storage.local.set({
       autoOpenReviews: true,
       timestamp: Date.now()
     });
+
+    // In map view, open both Google Maps and Booking.com pages in background tabs
+    if (isMapViewButton && info.bookingUrl) {
+      e.preventDefault(); // Prevent default link behavior
+
+      // Open both tabs in background by using window.open
+      // Opening the booking.com page first, then Google Maps
+      // This way focus tends to stay on the opener tab
+      window.open(info.bookingUrl, '_blank', 'noopener');
+      window.open(mapsUrl, '_blank', 'noopener');
+
+      // Attempt to keep focus on current tab
+      window.focus();
+    }
   });
 
   // Create the SVG icon (Google Maps style pin)
