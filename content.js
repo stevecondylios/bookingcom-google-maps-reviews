@@ -14,33 +14,142 @@ function extractCityFromUrl() {
   return null;
 }
 
+// Cache for Apollo data to avoid re-parsing
+let apolloDataCache = null;
+let apolloDataCacheTime = 0;
+const APOLLO_CACHE_TTL = 5000; // 5 seconds - data may update when map moves
+
+// Recursively search an object for basicPropertyData with location
+function findPropertyData(obj, propertyMap, visited = new WeakSet()) {
+  if (!obj || typeof obj !== 'object') return;
+
+  // Prevent infinite loops with circular references
+  if (visited.has(obj)) return;
+  visited.add(obj);
+
+  // Check if this object has basicPropertyData with location
+  if (obj.basicPropertyData?.location?.address && obj.basicPropertyData?.pageName) {
+    const loc = obj.basicPropertyData.location;
+    const pageName = obj.basicPropertyData.pageName;
+
+    propertyMap.set(pageName, {
+      address: loc.address,
+      city: loc.city || '',
+      latitude: loc.latitude,
+      longitude: loc.longitude
+    });
+  }
+
+  // Recurse into all properties
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === 'object') {
+      findPropertyData(value, propertyMap, visited);
+    }
+  }
+}
+
+// Parse and cache Apollo JSON data from the page
+function getApolloData() {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (apolloDataCache && (now - apolloDataCacheTime) < APOLLO_CACHE_TTL) {
+    return apolloDataCache;
+  }
+
+  // Find the Apollo data script tag
+  const scripts = document.querySelectorAll('script[type="application/json"][data-capla-store-data="apollo"]');
+  const propertyMap = new Map();
+
+  for (const script of scripts) {
+    try {
+      const data = JSON.parse(script.textContent);
+      // Recursively search the entire data structure
+      findPropertyData(data, propertyMap);
+    } catch (e) {
+      console.warn('Failed to parse Apollo data:', e);
+    }
+  }
+
+  apolloDataCache = propertyMap;
+  apolloDataCacheTime = now;
+
+  console.log('Apollo data parsed, found', propertyMap.size, 'properties');
+
+  return propertyMap;
+}
+
+// Extract pageName from hotel URL
+function extractPageNameFromUrl(url) {
+  // URL format: /hotel/vn/hung-anh-danang2.en-gb.html or similar
+  const match = url.match(/\/hotel\/[^/]+\/([^.]+)\./);
+  return match ? match[1] : null;
+}
+
 // Extract property info from the map view info window
 function extractPropertyInfoFromMapCard(infoWindow) {
   // Find hotel name using the header-title data-testid (robust selector)
   const titleElement = infoWindow.querySelector('[data-testid="header-title"]');
   if (!titleElement) {
-    console.warn('Map card: Hotel title element not found');
+    // Don't log - this is expected when info window is still loading
     return null;
   }
 
   // Get text content, stripping any extra whitespace
   const propertyName = titleElement.textContent.trim();
   if (!propertyName) {
-    console.warn('Map card: Hotel name is empty');
     return null;
   }
 
-  // Get city from URL
-  const city = extractCityFromUrl();
+  // Try to get address from Apollo data using the hotel link
+  const hotelLink = titleElement.querySelector('a[href*="/hotel/"]');
+  let address = null;
+  let city = null;
+
+  if (hotelLink) {
+    const pageName = extractPageNameFromUrl(hotelLink.href);
+    console.log('Map card: Looking up pageName:', pageName);
+
+    if (pageName) {
+      const apolloData = getApolloData();
+      console.log('Map card: Apollo data has', apolloData.size, 'properties');
+
+      const propertyData = apolloData.get(pageName);
+
+      if (propertyData) {
+        address = propertyData.address;
+        city = propertyData.city;
+        console.log('Map card: Found address:', address, ', city:', city);
+      } else {
+        console.log('Map card: No data found for pageName:', pageName);
+      }
+    }
+  } else {
+    console.log('Map card: No hotel link found in title element');
+  }
+
+  // Fall back to city from URL if not found in Apollo data
   if (!city) {
-    console.warn('Map card: Could not extract city from URL');
+    city = extractCityFromUrl();
+  }
+
+  if (!city) {
     return null;
+  }
+
+  // Build the full query - include address if available
+  let fullQuery;
+  if (address) {
+    fullQuery = `${propertyName}, ${address}, ${city}`;
+  } else {
+    fullQuery = `${propertyName}, ${city}`;
   }
 
   return {
     propertyName,
+    address,
     location: city,
-    fullQuery: `${propertyName}, ${city}`
+    fullQuery
   };
 }
 
@@ -107,8 +216,8 @@ function createGoogleMapsButton(info, isMapViewButton = false) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(info.fullQuery)}`;
 
   const buttonContainer = document.createElement('div');
-  buttonContainer.className = isMapViewButton 
-    ? 'google-maps-button-container google-maps-button-map-view' 
+  buttonContainer.className = isMapViewButton
+    ? 'google-maps-button-container google-maps-button-map-view'
     : 'google-maps-button-container';
 
   const link = document.createElement('a');
@@ -146,17 +255,16 @@ function addGoogleMapsButtonToMapCard(infoWindow) {
     return;
   }
 
-  const info = extractPropertyInfoFromMapCard(infoWindow);
-  if (!info) {
-    console.log('Map view: Could not extract property information');
-    return;
-  }
-
-  // Find the header container to insert the button
+  // Check if the info window has the required elements before processing
+  // This prevents processing incomplete/loading info windows
   const headerContainer = infoWindow.querySelector('[data-testid="header-container"]');
   if (!headerContainer) {
-    console.log('Map view: Could not find header container');
-    return;
+    return; // Info window not fully loaded yet
+  }
+
+  const info = extractPropertyInfoFromMapCard(infoWindow);
+  if (!info) {
+    return; // Could not extract info, will retry on next mutation
   }
 
   const buttonContainer = createGoogleMapsButton(info, true);
@@ -214,18 +322,28 @@ if (document.readyState === 'loading') {
   initialize();
 }
 
-// Observe for dynamic content changes (both hotel pages and map view info windows)
-const observer = new MutationObserver(() => {
-  if (isMapView()) {
-    // In map view, check for new info windows
-    handleMapView();
-  } else {
-    // On hotel page, add button if missing
-    if (!document.querySelector('.google-maps-button-container')) {
-      addGoogleMapsButton();
+// Throttle function to limit how often a function can be called
+let pendingUpdate = null;
+function throttledUpdate() {
+  if (pendingUpdate) return;
+
+  pendingUpdate = requestAnimationFrame(() => {
+    pendingUpdate = null;
+
+    if (isMapView()) {
+      // In map view, check for new info windows
+      handleMapView();
+    } else {
+      // On hotel page, add button if missing
+      if (!document.querySelector('.google-maps-button-container')) {
+        addGoogleMapsButton();
+      }
     }
-  }
-});
+  });
+}
+
+// Observe for dynamic content changes (both hotel pages and map view info windows)
+const observer = new MutationObserver(throttledUpdate);
 
 observer.observe(document.body, {
   childList: true,
